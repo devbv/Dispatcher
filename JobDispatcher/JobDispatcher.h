@@ -100,18 +100,24 @@ public:
 	}
 
 
-	template <class T, class... Args>
-	void DoAsync(void (T::*memfunc)(Args...), Args&&... args) 
+	template <class R, class T, class... Args>
+	std::shared_future<R> DoAsync(R (T::*memfunc)(Args...), Args&&... args)
 	{ 
-		auto* job = new Job<T, Args...>(static_cast<T*>(this), memfunc, std::forward<Args>(args)...);
-		DoTask(job); 
+		auto* job = new Job<R, T, Args...>(static_cast<T*>(this), memfunc, std::forward<Args>(args)...);
+		std::shared_future<R> ret(job->getFuture());
+		DoTask(job);
+
+		return ret;
 	} 
 
-	template <class T, class... Args>
-	void DoAsyncAfter(uint32_t after, void (T::*memfunc)(Args...), Args&&... args)
+	template <class R, class T, class... Args>
+	std::shared_future<R> DoAsyncAfter(uint32_t after, R (T::*memfunc)(Args...), Args&&... args)
 	{
-		auto* job = new Job<T, Args...>(static_cast<T*>(this), memfunc, std::forward<Args>(args)...);
+		auto* job = new Job<R, T, Args...>(static_cast<T*>(this), memfunc, std::forward<Args>(args)...);
+		std::shared_future<R> ret(job->getFuture());
 		LTimer->PushTimerJob(this, after, job);
+
+		return ret;
 	}
 
 	void AddRefForThis()

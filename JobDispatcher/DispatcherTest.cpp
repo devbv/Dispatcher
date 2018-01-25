@@ -32,6 +32,12 @@ public:
 			DoAsync(&TestObject::TestFunc1, std::move(b));
 	}
 
+	int TestFunc3(int k)
+	{
+		return mTestCount + k;
+	}
+
+
 	void TestFuncForTimer(int b)
 	{
 		if (rand() % 2 == 0)
@@ -68,6 +74,8 @@ public:
 			gTestObjects[rand() % TEST_OBJECT_COUNT]->DoAsync(&TestObject::TestFunc1, 1);
 
 			gTestObjects[rand() % TEST_OBJECT_COUNT]->DoAsyncAfter(after, &TestObject::TestFuncForTimer, (int)after);
+
+			auto& future = gTestObjects[rand() % TEST_OBJECT_COUNT]->DoAsync(&TestObject::TestFunc3, 10);
 		}
 
 		/// exit condition

@@ -69,13 +69,9 @@ public:
 
 		if (after > 1000)
 		{
-			gTestObjects[rand() % TEST_OBJECT_COUNT]->DoAsync(&TestObject::TestFunc0);
-			gTestObjects[rand() % TEST_OBJECT_COUNT]->DoAsync(&TestObject::TestFunc2, double(rand() % 100), 2);
-			gTestObjects[rand() % TEST_OBJECT_COUNT]->DoAsync(&TestObject::TestFunc1, 1);
-
-			gTestObjects[rand() % TEST_OBJECT_COUNT]->DoAsyncAfter(after, &TestObject::TestFuncForTimer, (int)after);
-
-			auto& future = gTestObjects[rand() % TEST_OBJECT_COUNT]->DoAsync(&TestObject::TestFunc3, 10);
+			auto t = gTestObjects[rand() % TEST_OBJECT_COUNT];
+			Future<int> a = t->DoAsync(&TestObject::TestFunc3, 1);
+			std::cout << a.Get() << std::endl;
 		}
 
 		/// exit condition

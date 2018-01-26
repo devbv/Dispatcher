@@ -101,20 +101,20 @@ public:
 
 
 	template <class R, class T, class... Args>
-	std::shared_future<R> DoAsync(R (T::*memfunc)(Args...), Args&&... args)
+	Future<R> DoAsync(R (T::*memfunc)(Args...), Args&&... args)
 	{ 
 		auto* job = new Job<R, T, Args...>(static_cast<T*>(this), memfunc, std::forward<Args>(args)...);
-		std::shared_future<R> ret(job->getFuture());
+		Future<R> ret = job->GetFuture();
 		DoTask(job);
 
 		return ret;
-	} 
+	}
 
 	template <class R, class T, class... Args>
-	std::shared_future<R> DoAsyncAfter(uint32_t after, R (T::*memfunc)(Args...), Args&&... args)
+	Future<R> DoAsyncAfter(uint32_t after, R (T::*memfunc)(Args...), Args&&... args)
 	{
 		auto* job = new Job<R, T, Args...>(static_cast<T*>(this), memfunc, std::forward<Args>(args)...);
-		std::shared_future<R> ret(job->getFuture());
+		Future<R> ret = job->GetFuture();
 		LTimer->PushTimerJob(this, after, job);
 
 		return ret;
@@ -184,7 +184,7 @@ private:
 			if (JobEntry* job = mJobQueue.Pop())
 			{
 				job->OnExecute();
-				delete job;
+				job->ReleaseRefForThis();
 
 				if ( mRemainTaskCount.fetch_sub(1) == 1 )
 					break;

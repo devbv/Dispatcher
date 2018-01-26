@@ -40,20 +40,109 @@ struct NodeEntry
 
 struct JobEntry
 {
-	JobEntry() 	{}
+	JobEntry(): mRefCount(1) {}
 	virtual ~JobEntry() {}
 
 	virtual void OnExecute()
 	{}
 
-	NodeEntry mNodeEntry;
+	void AddRefForThis()
+	{
+		mRefCount.fetch_add(1);
+	}
+
+	void ReleaseRefForThis()
+	{
+		if (mRefCount.fetch_sub(1) == 1)
+		{
+			delete this;
+		}
+	}
+
+	std::atomic<int32_t>	mRefCount;
+	NodeEntry	mNodeEntry;
 } ;
+
+
+template <typename R>
+class Future {
+public:
+	Future(JobEntry* job, std::future<R>&& future) : mJob(job), mFuture(std::move(future)) {
+		mJob->AddRefForThis();
+	}
+
+	~Future() {
+		if (mJob)
+		{
+			mJob->ReleaseRefForThis();
+		}
+	}
+
+	Future(Future&& other)
+	{
+		mJob = other.mJob;
+		mFuture = std::move(other.mFuture);
+		other.mJob = nullptr;
+	}
+
+	Future& operator=(Future&& other)
+	{
+		if (this != &other) {
+			mJob = other.mJob;
+			mFuture = std::move(other.mFuture);
+			other.mJob = nullptr;
+		}
+
+		return *this;
+	}
+
+	R Get() {
+		R ret = mFuture.get();
+		return ret;
+	}
+
+	JobEntry*				mJob;
+	std::future<R>			mFuture;
+};
+
+template <>
+class Future<void> {
+public:
+	Future(JobEntry* job, std::future<void>&& future) : mJob(job), mFuture(std::move(future)) {
+		mJob->AddRefForThis();
+	}
+
+	Future(Future&& other)
+	{
+		mJob = other.mJob;
+		mFuture = std::move(other.mFuture);
+		other.mJob = nullptr;
+	}
+
+	Future& operator=(Future&& other)
+	{
+		if (this != &other) {
+			mJob = other.mJob;
+			mFuture = std::move(other.mFuture);
+			other.mJob = nullptr;
+		}
+
+		return *this;
+	}
+
+	void Get() {
+		mFuture.get();
+	}
+
+	JobEntry*					mJob;
+	std::future<void>			mFuture;
+};
 
 
 template <class RetType, class ObjType, class... ArgTypes>
 struct Job : public JobEntry, ObjectPool<Job<RetType, ObjType, ArgTypes...>>
 {
-	typedef RetType (ObjType::*MemFunc_)(ArgTypes... args);
+	typedef RetType(ObjType::*MemFunc_)(ArgTypes... args);
 	typedef std::tuple<ArgTypes...> Args_;
 
 
@@ -65,18 +154,18 @@ struct Job : public JobEntry, ObjectPool<Job<RetType, ObjType, ArgTypes...>>
 
 	virtual void OnExecute()
 	{
-		mPromise.set_value(DoExecuteTuple(mObject, mMemFunc, mArgs));
+		(&mPromise)->set_value(DoExecuteTuple(mObject, mMemFunc, mArgs));
 	}
 
-	std::future<RetType> getFuture()
+	Future<RetType> GetFuture()
 	{
-		return mPromise.get_future();
+		return Future<RetType>(this, mPromise.get_future());
 	}
 
-	ObjType*			  mObject;
-	MemFunc_			  mMemFunc;
-	Args_				  mArgs;
-	std::promise<RetType> mPromise;
+	ObjType*				mObject;
+	MemFunc_				mMemFunc;
+	Args_					mArgs;
+	std::promise<RetType>	mPromise;
 };
 
 template <class ObjType, class... ArgTypes>
@@ -95,17 +184,16 @@ struct Job<void, ObjType, ArgTypes...> : public JobEntry, ObjectPool<Job<void, O
 	virtual void OnExecute()
 	{
 		DoExecuteTuple(mObject, mMemFunc, mArgs);
+		mPromise.set_value();
 	}
 
-	std::future<void> getFuture()
+	Future<void> GetFuture()
 	{
-		return mPromise.get_future();
+		return Future<void>(this, mPromise.get_future());
 	}
 
-	ObjType*			  mObject;
-	MemFunc_			  mMemFunc;
-	Args_				  mArgs;
-	std::promise<void>	  mPromise;
+	ObjType*				mObject;
+	MemFunc_				mMemFunc;
+	Args_					mArgs;
+	std::promise<void>		mPromise;
 };
-
-
